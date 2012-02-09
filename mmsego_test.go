@@ -69,7 +69,7 @@ var getChunksTests = []getChunksTest{
 }
 
 func testGetChunks(t *testing.T) {
-    dict := LoadDictionary("/public/development/mmsego/uni.lib");
+    dict := LoadDictionary("/public/development/go_projects/src/mmsego/uni.lib");
     for _, dt := range getChunksTests {
 	v := getChunks(dt.in, dict);
 	t.Errorf("dt.in:%v, dict:%v\n", dt.in, dict["人民政府"].TT[0]);
@@ -167,4 +167,35 @@ func TestVariance(t *testing.T){
 	    t.Errorf("In = %v, Real = %v, want %v.", dt.in, v, dt.out)
 	}
     }
+}
+
+type mmsegTest struct{
+    in string
+    out int
+}
+
+var mmsegTests = []mmsegTest{
+    {"中国人民解放军是世界上最强大的军队，每个人都说共产党好", 0},
+    {"我爱北京天安门，天安门上太阳升，伟大领袖毛主席，领导人民闹革命", 0},
+}
+
+func TestMmseg(t *testing.T){
+    inChan := make(chan string);
+    outChan := make(chan [2]int, 50);
+    go mmseg(inChan, outChan);
+    go func(){
+	for m := range outChan {
+	    t.Logf("%v ",dt.in[m[0]:m[1]]);
+	}
+    }()
+    for _, dt := range mmsegTests{
+	inChan <- dt.in[:]
+	/*
+	v := mmseg(dt.in[:], outChan)
+	if v != dt.out {
+	    t.Errorf("In = %v, Real = %v, want %v.", dt.in, v, dt.out)
+	}*/
+    }
+    close(inChan)
+    t.Errorf("fail\n");
 }

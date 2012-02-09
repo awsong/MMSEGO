@@ -63,7 +63,7 @@ type MatchItem struct{
     wordItem [3]*DictItem
 }
 
-//return value is the byte length of the first word
+//return value is the index of the chunk
 func filterChunksByRules(chunks []MatchItem) (index int) {
     var retVecRule1 []int
     var retVecRule2 []int
@@ -181,8 +181,25 @@ w1:	    for wordLen[1] = min(8, left); wordLen[1]>0; wordLen[1]-- {
 	    }
 	}
     }
+    /*
     for _, v := range chunks{
 	fmt.Printf("%v, %v\n", v.word, v.wordLen);
-    }
+    }*/
     return chunks;
+}
+
+func Mmseg(in chan string, out chan [2]int) int {
+    dict := LoadDictionary("/public/development/go_projects/src/mmsego/uni.lib");
+    for inString := range in{
+	offset := 0;
+	for ; offset < len(inString); {
+	    chunks := getChunks(inString[offset:], dict);
+	    index := filterChunksByRules(chunks);
+	    //fmt.Printf("%v, %v\n", offset, chunks[index].wordLen[0]);
+	    out <- [2]int{offset, offset+len(chunks[index].word[0])}
+	    offset  += len(chunks[index].word[0]);
+	}
+    }
+    close(out);
+    return 1;
 }
