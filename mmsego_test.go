@@ -2,6 +2,7 @@ package mmsego
 
 import(
     "testing"
+    "unicode/utf8"
     )
 
 type minMaxTest struct{
@@ -71,7 +72,14 @@ var getChunksTests = []getChunksTest{
 func testGetChunks(t *testing.T) {
     dict := LoadDictionary("/public/development/go_projects/src/mmsego/uni.lib");
     for _, dt := range getChunksTests {
-	v := getChunks(dt.in, dict);
+	var pos = make([]int,len(dt.in))
+        pos[0] = 0
+        runeLen := 0
+        for i,s := range dt.in{
+            pos[i+1] = pos[i] + utf8.RuneLen(s)
+            runeLen++
+        }
+	v := getChunks(dt.in, pos[:runeLen], dict);
 	t.Errorf("dt.in:%v, dict:%v\n", dt.in, dict["人民政府"].TT[0]);
 	return;
 	t.Errorf("number of chunks: %v\n", len(v));
@@ -175,17 +183,18 @@ type mmsegTest struct{
 }
 
 var mmsegTests = []mmsegTest{
+    {"中国人民解放军是，\"世界上最强大的军队，\"每个人都说共产党好", 0},
     {"中国人民解放军是世界上最强大的军队，每个人都说共产党好", 0},
-    {"我爱北京天安门，天安门上太阳升，伟大领袖毛主席，领导人民闹革命", 0},
+    {"我爱北京天安门，天安门上太阳升，伟大领袖毛主席，领导人民闹革命！", 0},
 }
 
 func TestMmseg(t *testing.T){
     inChan := make(chan string);
     outChan := make(chan [2]int, 50);
-    go mmseg(inChan, outChan);
+    go Mmseg(inChan, outChan);
     go func(){
 	for m := range outChan {
-	    t.Logf("%v ",dt.in[m[0]:m[1]]);
+	    t.Logf("%v ",m);
 	}
     }()
     for _, dt := range mmsegTests{

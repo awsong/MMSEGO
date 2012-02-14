@@ -1,8 +1,8 @@
 package mmsego
 
 import(
-//    "strings"
-    "exp/utf8string"
+    "unicode"
+//    "exp/utf8string"
     "fmt"
     "math"
     )
@@ -24,6 +24,7 @@ func average(in []int) float64{
     denominator := 0
     for j := 0; j < len(in); j++{
 	numerator += in[j]
+	//in[j]==0 means this item doesn't exist
 	if 0 != in[j] {
 	    denominator++
 	}
@@ -34,6 +35,7 @@ func variance(in []int) float64{
     avg := average(in)
     cumulative := 0.
     denominator := 0.
+    //in[j]0 means this item doesn't exist
     for j := 0; j < len(in) && 0 != in[j]; j++{
 	v := float64(in[j]) - avg
 	cumulative +=  v*v
@@ -43,7 +45,7 @@ func variance(in []int) float64{
 }
 func morphemicFreedom(in *MatchItem) (out float64) {
     for i := 0; i < len(in.word); i++ {
-	if 1 == in.wordLen[i] {
+	if 1 == in.wordRuneLen[i] {
 	    if nil != in.wordItem[i]{
 		//add offset 3 to prevent negative log value
 		out += math.Log(float64(3+in.wordItem[i].Freq))
@@ -59,7 +61,7 @@ func morphemicFreedom(in *MatchItem) (out float64) {
 }
 type MatchItem struct{
     word [3]string
-    wordLen [3]int
+    wordRuneLen [3]int
     wordItem [3]*DictItem
 }
 
@@ -72,7 +74,7 @@ func filterChunksByRules(chunks []MatchItem) (index int) {
     length := len(chunks)
     maxLength := 0
     for i :=0; i< length; i++{ //rule 1, Maximum matching
-	l := chunks[i].wordLen[0] + chunks[i].wordLen[1] + chunks[i].wordLen[2]
+	l := chunks[i].wordRuneLen[0] + chunks[i].wordRuneLen[1] + chunks[i].wordRuneLen[2]
 	if l > maxLength {
 	    maxLength = l
 	    retVecRule1 = []int{i}
@@ -83,10 +85,10 @@ func filterChunksByRules(chunks []MatchItem) (index int) {
     if len(retVecRule1) == 1{
 	return retVecRule1[0]
     }else{
-	//rule 2, Largest average word length
+	//rule 2, Largest average word Rune length
 	avgLen := 0.
 	for i := 0; i < len(retVecRule1); i++{
-	    avg := average(chunks[retVecRule1[i]].wordLen[:])
+	    avg := average(chunks[retVecRule1[i]].wordRuneLen[:])
 	    if avg > avgLen {
 		avgLen = avg
 		retVecRule2 = []int{retVecRule1[i]}
@@ -100,7 +102,7 @@ func filterChunksByRules(chunks []MatchItem) (index int) {
 	    //rule 3, smallest variance
 	    smallestV := 65536. //large enough number
 	    for i := 0; i < len(retVecRule2); i++{
-		v := variance(chunks[retVecRule2[i]].wordLen[:])
+		v := variance(chunks[retVecRule2[i]].wordRuneLen[:])
 		if v < smallestV {
 		    smallestV = v
 		    retVecRule3 = []int{retVecRule2[i]}
@@ -134,47 +136,49 @@ func filterChunksByRules(chunks []MatchItem) (index int) {
     return 0
 }
 
-func getChunks(inString string, dict Dict) (chunks []MatchItem){
-    utf8InString := utf8string.NewString(inString);
-    var wordLen [3]int;
+func getChunks(inString string, inOffset []int,dict Dict) (chunks []MatchItem){
+    var wordRuneLen [3]int;
     var word [3]string;
     var wordItem [3]*DictItem;
-    var chunkLen = utf8InString.RuneCount();
+    var chunkLen = len(inOffset)
     var present bool;
-    for wordLen[0] = min(8, chunkLen); wordLen[0]>0; wordLen[0]-- {
-	word[0] = utf8InString.Slice(0, wordLen[0])
+    for wordRuneLen[0] = min(4, chunkLen); wordRuneLen[0]>0; wordRuneLen[0]-- {
+	if wordRuneLen[0] == len(inOffset) {
+	    word[0] = inString[inOffset[0] : ]
+	}else{
+	    word[0] = inString[inOffset[0] : inOffset[wordRuneLen[0]]]
+	}
 	wordItem[0], present = dict[word[0]];
-	if present || wordLen[0] == 1 {
-	    left := chunkLen-wordLen[0];
+	if present || wordRuneLen[0] == 1 {
+	    left := chunkLen-wordRuneLen[0];
 	    if left == 0 {
-		//left==0 means this is THE best match, accroding to all 3 rules
-		//we should return from here
-		/*word[1] = ""
-		word[2] = ""
-		wordLen[1] = 0
-		wordLen[2] = 0
-		wordItem[1] = nil
-		wordItem[2] = nil
-		chunks = append(chunks, MatchItem{word,wordLen,wordItem});*/
-		return []MatchItem{MatchItem{word,wordLen,wordItem}}[:]
+		return []MatchItem{MatchItem{word,wordRuneLen,wordItem}}[:]
 	    }
-w1:	    for wordLen[1] = min(8, left); wordLen[1]>0; wordLen[1]-- {
-		word[1] = utf8InString.Slice(wordLen[0], wordLen[0]+wordLen[1])
+w1:	    for wordRuneLen[1] = min(4, left); wordRuneLen[1]>0; wordRuneLen[1]-- {
+		if wordRuneLen[0] + wordRuneLen[1] == len(inOffset) {
+		    word[1] = inString[inOffset[wordRuneLen[0]] : ]
+		}else{
+		    word[1] = inString[inOffset[wordRuneLen[0]] : inOffset[wordRuneLen[0]+ wordRuneLen[1]]]
+		}
 		wordItem[1], present = dict[word[1]];
-		if present || wordLen[1] == 1 {
-		    left = chunkLen-wordLen[0]-wordLen[1]
+		if present || wordRuneLen[1] == 1 {
+		    left = chunkLen-wordRuneLen[0]-wordRuneLen[1]
 		    if left == 0 {
 			word[2] = ""
-			wordLen[2] = 0
+			wordRuneLen[2] = 0
 			wordItem[2] = nil
-			chunks = append(chunks, MatchItem{word,wordLen,wordItem});
+			chunks = append(chunks, MatchItem{word,wordRuneLen,wordItem});
 			break w1;
 		    }
-		    for wordLen[2] = min(8, left); wordLen[2]>0; wordLen[2]-- {
-			word[2] = utf8InString.Slice(wordLen[0]+wordLen[1], wordLen[0]+wordLen[1]+wordLen[2])
+		    for wordRuneLen[2] = min(4, left); wordRuneLen[2]>0; wordRuneLen[2]-- {
+			if wordRuneLen[0] + wordRuneLen[1] + wordRuneLen[2]== len(inOffset) {
+			    word[1] = inString[inOffset[wordRuneLen[0]+wordRuneLen[1]] : ]
+			}else{
+			    word[1] = inString[inOffset[wordRuneLen[0]+wordRuneLen[1]] : inOffset[wordRuneLen[0]+wordRuneLen[1]+wordRuneLen[2]]]
+			}
 			wordItem[2], present = dict[word[2]];
-			if present || wordLen[2] == 1 {
-			    chunks = append(chunks, MatchItem{word,wordLen,wordItem});
+			if present || wordRuneLen[2] == 1 {
+			    chunks = append(chunks, MatchItem{word,wordRuneLen,wordItem});
 			}
 		    }
 		}
@@ -183,7 +187,7 @@ w1:	    for wordLen[1] = min(8, left); wordLen[1]>0; wordLen[1]-- {
     }
     /*
     for _, v := range chunks{
-	fmt.Printf("%v, %v\n", v.word, v.wordLen);
+	fmt.Printf("%v, %v\n", v.word, v.wordRuneLen);
     }*/
     return chunks;
 }
@@ -191,13 +195,62 @@ w1:	    for wordLen[1] = min(8, left); wordLen[1]>0; wordLen[1]-- {
 func Mmseg(in chan string, out chan [2]int) int {
     dict := LoadDictionary("/public/development/go_projects/src/mmsego/uni.lib");
     for inString := range in{
-	offset := 0;
-	for ; offset < len(inString); {
-	    chunks := getChunks(inString[offset:], dict);
+	var pos = make([]int,len(inString))
+	runeLen := 0
+	for i,r := range inString{
+	    if unicode.IsPunct(r){
+		pos[runeLen] = -1
+	    }else{
+		pos[runeLen] = i
+	    }
+	    runeLen++
+	}
+	offset := 0
+	nextPunct := 0
+	for i, v := range pos{
+	    if v == -1 {
+		nextPunct = i
+		break
+	    }
+	}
+	eol := false
+for0:	for ; offset < runeLen; {
+	    if offset == nextPunct && !eol{
+		offset++
+		//find the next none Punct offset
+		for ;pos[offset] == -1 && offset<runeLen;{
+		    offset++
+		}
+		if offset == runeLen{
+		    break for0
+		}
+		//find the next Punct after offset
+		for i, v := range pos[offset:]{
+		    if v == -1 {
+			nextPunct = i+offset
+			break
+		    }
+		    if i+offset == runeLen {
+			eol = true
+		    }
+		}
+	    }
+	    var chunks []MatchItem
+	    if eol {
+		chunks = getChunks(inString[:], pos[offset:runeLen], dict);
+	    }else{
+		chunks = getChunks(inString[:], pos[offset:nextPunct], dict);
+	    }
+	    if 0 == len(chunks){
+		fmt.Println("chunks is 0",offset, nextPunct, runeLen,inString[:])
+	    }
 	    index := filterChunksByRules(chunks);
-	    //fmt.Printf("%v, %v\n", offset, chunks[index].wordLen[0]);
-	    out <- [2]int{offset, offset+len(chunks[index].word[0])}
-	    offset  += len(chunks[index].word[0]);
+	    if offset < 0 ||offset > len(pos) || index > len(chunks){
+		fmt.Println("oops:",offset, pos[offset], index)
+	    }
+	    //fmt.Printf("%v, %v\n", offset, chunks[index].wordRuneLen[0]);
+	    out <- [2]int{pos[offset], pos[offset]+len(chunks[index].word[0])}
+	    offset  += chunks[index].wordRuneLen[0];
 	}
     }
     close(out);
