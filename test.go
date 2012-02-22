@@ -1,3 +1,5 @@
+// +build ignore
+
 package main
 
 import (
@@ -6,7 +8,7 @@ import (
 )
 
 func main(){
-    a := "中国人民额"
+    a := "ä¸­å½äººæ°é¢"
     for i, v := range a{
 	fmt.Printf("%v, %v\n", i, v);
     }

@@ -1,3 +1,5 @@
+// +build ignore
+
 package main
 
 import (
@@ -23,7 +25,7 @@ func main() {
 
     dec := gob.NewDecoder(file);
     dec.Decode(&dict);
-    fmt.Printf("反: %v\n", dict["狗屁猎人"].TT[0]);
+    fmt.Printf("å: %v\n", dict["çå±çäºº"].TT[0]);
 //    for key, value := range dict {
 //	fmt.Printf("key %s, value %d\n", key, value)
 //    }
