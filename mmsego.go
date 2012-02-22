@@ -7,6 +7,9 @@ import(
     "math"
     )
 
+type Segmenter struct{
+    dict Dict
+}
 func max( a, b int ) int{
     if a < b {
 	return b;
@@ -192,67 +195,67 @@ w1:	    for wordRuneLen[1] = min(4, left); wordRuneLen[1]>0; wordRuneLen[1]-- {
     return chunks;
 }
 
-func Mmseg(in chan string, out chan [2]int) int {
-    dict := LoadDictionary("/public/development/go_projects/src/mmsego/uni.lib");
-    for inString := range in{
-	var pos = make([]int,len(inString))
-	runeLen := 0
-	for i,r := range inString{
-	    if unicode.IsPunct(r){
-		pos[runeLen] = -1
-	    }else{
-		pos[runeLen] = i
-	    }
-	    runeLen++
+func (s *Segmenter)Init(dictPath string){
+    s.dict = LoadDictionary(dictPath)
+}
+func (s *Segmenter)Mmseg(inString string, out chan [2]int) bool{
+    var pos = make([]int,len(inString))
+    runeLen := 0
+    for i,r := range inString{
+	if unicode.IsPunct(r){
+	    pos[runeLen] = -1
+	}else{
+	    pos[runeLen] = i
 	}
-	offset := 0
-	nextPunct := 0
-	for i, v := range pos{
-	    if v == -1 {
-		nextPunct = i
-		break
-	    }
-	}
-	eol := false
-for0:	for ; offset < runeLen; {
-	    if offset == nextPunct && !eol{
-		offset++
-		//find the next none Punct offset
-		for ;pos[offset] == -1 && offset<runeLen;{
-		    offset++
-		}
-		if offset == runeLen{
-		    break for0
-		}
-		//find the next Punct after offset
-		for i, v := range pos[offset:]{
-		    if v == -1 {
-			nextPunct = i+offset
-			break
-		    }
-		    if i+offset == runeLen {
-			eol = true
-		    }
-		}
-	    }
-	    var chunks []MatchItem
-	    if eol {
-		chunks = getChunks(inString[:], pos[offset:runeLen], dict);
-	    }else{
-		chunks = getChunks(inString[:], pos[offset:nextPunct], dict);
-	    }
-	    if 0 == len(chunks){
-		fmt.Println("chunks is 0",offset, nextPunct, runeLen,inString[:])
-	    }
-	    index := filterChunksByRules(chunks);
-	    if offset < 0 ||offset > len(pos) || index > len(chunks){
-		fmt.Println("oops:",offset, pos[offset], index)
-	    }
-	    //fmt.Printf("%v, %v\n", offset, chunks[index].wordRuneLen[0]);
-	    out <- [2]int{pos[offset], pos[offset]+len(chunks[index].word[0])}
-	    offset  += chunks[index].wordRuneLen[0];
+	runeLen++
+    }
+    offset := 0
+    nextPunct := 0
+    for i, v := range pos{
+	if v == -1 {
+	    nextPunct = i
+	    break
 	}
     }
+    eol := false
+f0: for ; offset < runeLen; {
+	if offset == nextPunct && !eol{
+	    offset++
+	    //find the next none Punct offset
+	    for ;pos[offset] == -1 && offset<runeLen;{
+		offset++
+	    }
+	    if offset == runeLen{
+		break f0
+	    }
+	    //find the next Punct after offset
+	    for i, v := range pos[offset:]{
+		if v == -1 {
+		    nextPunct = i+offset
+		    break
+		}
+		if i+offset == runeLen {
+		    eol = true
+		}
+	    }
+	}
+	var chunks []MatchItem
+	if eol {
+	    chunks = getChunks(inString[:], pos[offset:runeLen], s.dict);
+	}else{
+	    chunks = getChunks(inString[:], pos[offset:nextPunct], s.dict);
+	}
+	if 0 == len(chunks){
+	    fmt.Println("chunks is 0",offset, nextPunct, runeLen,inString[:])
+	}
+	index := filterChunksByRules(chunks);
+	if offset < 0 ||offset > len(pos) || index > len(chunks){
+	    fmt.Println("oops:",offset, pos[offset], index)
+	}
+	//fmt.Printf("%v, %v\n", offset, chunks[index].wordRuneLen[0]);
+	out <- [2]int{pos[offset], pos[offset]+len(chunks[index].word[0])}
+	offset  += chunks[index].wordRuneLen[0];
+    }
     close(out);
-    return 1;
+    return true;
 }

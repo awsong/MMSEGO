@@ -189,22 +189,20 @@ var mmsegTests = []mmsegTest{
 }
 
 func TestMmseg(t *testing.T){
-    inChan := make(chan string);
+    s := new(Segmenter)
     outChan := make(chan [2]int, 50);
-    go Mmseg(inChan, outChan);
-    go func(){
+
+    s.init("/public/development/go_projects/src/mmsego/uni.lib")
+    for _, dt := range mmsegTests{
+	go s.Mmseg(dt.in[:], outChan)
 	for m := range outChan {
 	    t.Logf("%v ",m);
 	}
-    }()
-    for _, dt := range mmsegTests{
-	inChan <- dt.in[:]
 	/*
 	v := mmseg(dt.in[:], outChan)
 	if v != dt.out {
 	    t.Errorf("In = %v, Real = %v, want %v.", dt.in, v, dt.out)
 	}*/
     }
-    close(inChan)
     t.Errorf("fail\n");
 }
