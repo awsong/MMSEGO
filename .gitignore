@@ -1,0 +1,7 @@
+!.gitignore
+*.swp
+prof
+test
+thesaurus.txt
+uni.lib
+unigram.txt
