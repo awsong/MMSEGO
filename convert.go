@@ -26,7 +26,6 @@ func main(){
     line, _, bufErr := uniLineReader.ReadLine();
     for nil == bufErr {
 	strings = append(strings, string(line))
-	//fmt.Printf("This is a line: %v:%d, end\n", rst[0], freq);
 	line, _, bufErr = uniLineReader.ReadLine();
     }
     sort.Strings(strings)
@@ -37,11 +36,15 @@ func main(){
 	values = append(values, freq)
     }
 
-//    for key, value := range dict {
-//	fmt.Printf("key %s, value %d\n", key, value)
-//    }
-    fmt.Printf("dict length: %v %v\n", len(keys), len(values));
-    d := darts.Build(keys, values)
+    fmt.Printf("input dict length: %v %v\n", len(keys), len(values));
+    round := len(keys)
+    d := darts.Build(keys[:round], values[:round])
+    fmt.Printf("build out length %v\n", len(d))
+    for i := 0; i < round; i++ {
+	if true != d.ExactMatchSearch(keys[i],0){
+	    fmt.Println("wrong", string(keys[i]), i)
+	}
+    }
     enc := gob.NewEncoder(ofile);
     enc.Encode(d);
 }
