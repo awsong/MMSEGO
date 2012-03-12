@@ -10,6 +10,7 @@ import (
     "bytes"
     "sort"
     "strconv"
+    "time"
     "encoding/gob"
     )
 
@@ -40,11 +41,13 @@ func main(){
     round := len(keys)
     d := darts.Build(keys[:round], values[:round])
     fmt.Printf("build out length %v\n", len(d))
+    t := time.Now()
     for i := 0; i < round; i++ {
 	if true != d.ExactMatchSearch(keys[i],0){
 	    fmt.Println("wrong", string(keys[i]), i)
 	}
     }
+    fmt.Println(time.Since(t))
     enc := gob.NewEncoder(ofile);
     enc.Encode(d);
 }
