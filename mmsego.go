@@ -208,7 +208,7 @@ func (s *Segmenter)Mmseg(inString string, initOffset int, takeWord func(int, int
 	    }
 	    //find the next Punct after offset
 	    for i, r := range inRunes[offset:]{
-		if !unicode.IsLetter(r){
+		if !unicode.IsOneOf([]*unicode.RangeTable{unicode.N, unicode.L},r){
 		    nextPunct = i + offset
 		    break
 		}
