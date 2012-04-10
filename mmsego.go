@@ -2,13 +2,12 @@ package mmsego
 
 import(
     "unicode"
-//    "exp/utf8string"
-    "fmt"
     "math"
+    "darts"
     )
 
 type Segmenter struct{
-    dict Dict
+    dict darts.Darts
 }
 func max( a, b int ) int{
     if a < b {
@@ -22,240 +21,221 @@ func min( a, b int ) int{
     }
     return a;
 }
-func average(in []int) float64{
+func average(in []darts.ResultPair) float64{
     numerator := 0
     denominator := 0
     for j := 0; j < len(in); j++{
-	numerator += in[j]
-	//in[j]==0 means this item doesn't exist
-	if 0 != in[j] {
-	    denominator++
-	}
+	numerator += in[j].PrefixLen
+	denominator++
     }
     return float64(numerator)/float64(denominator)
 }
-func variance(in []int) float64{
+func variance(in []darts.ResultPair) float64{
     avg := average(in)
     cumulative := 0.
     denominator := 0.
     //in[j]0 means this item doesn't exist
-    for j := 0; j < len(in) && 0 != in[j]; j++{
-	v := float64(in[j]) - avg
+    for j := 0; j < len(in); j++{
+	v := float64(in[j].PrefixLen) - avg
 	cumulative +=  v*v
 	denominator++
     }
     return math.Sqrt(cumulative/denominator)
 }
-func morphemicFreedom(in *MatchItem) (out float64) {
-    for i := 0; i < len(in.word); i++ {
-	if 1 == in.wordRuneLen[i] {
-	    if nil != in.wordItem[i]{
-		//add offset 3 to prevent negative log value
-		out += math.Log(float64(3+in.wordItem[i].Freq))
-	    }else{
-		//wordItem==nil means we did NOT find the char in dictionary
-		//we assume the frequency as 1
-		//add offset 3 to prevent negative log value
-		out += math.Log(3+1)
-	    }
+func morphemicFreedom(in []darts.ResultPair) (out float64) {
+    for i := 0; i < len(in); i++ {
+	if 1 == in[i].PrefixLen {
+	    //add offset 3 to prevent negative log value
+	    out += math.Log(float64(3+in[i].Freq))
 	}
     }
     return out
 }
-type MatchItem struct{
-    word [3]string
-    wordRuneLen [3]int
-    wordItem [3]*DictItem
-}
 
-//return value is the index of the chunk
-func filterChunksByRules(chunks []MatchItem) (index int) {
-    var retVecRule1 []int
-    var retVecRule2 []int
-    var retVecRule3 []int
-    var retVecRule4 []int
+//return value is the the chosen chunk
+func filterChunksByRules(chunks [][]darts.ResultPair) ([]darts.ResultPair) {
+    var candidates1,candidates2,candidates3,candidates4 [][]darts.ResultPair
     length := len(chunks)
     maxLength := 0
     for i :=0; i< length; i++{ //rule 1, Maximum matching
-	l := chunks[i].wordRuneLen[0] + chunks[i].wordRuneLen[1] + chunks[i].wordRuneLen[2]
+	var l int
+	for j := 0 ; j < len(chunks[i]); j++{
+	    l += chunks[i][j].PrefixLen
+	}
 	if l > maxLength {
 	    maxLength = l
-	    retVecRule1 = []int{i}
+	    candidates1  = [][]darts.ResultPair{chunks[i]}
 	}else if l == maxLength {
-	    retVecRule1 = append(retVecRule1, i)
+	    candidates1 = append(candidates1, chunks[i])
 	}
     }
-    if len(retVecRule1) == 1{
-	return retVecRule1[0]
-    }else{
-	//rule 2, Largest average word Rune length
-	avgLen := 0.
-	for i := 0; i < len(retVecRule1); i++{
-	    avg := average(chunks[retVecRule1[i]].wordRuneLen[:])
-	    if avg > avgLen {
-		avgLen = avg
-		retVecRule2 = []int{retVecRule1[i]}
-	    }else if avg == avgLen {
-		retVecRule2 = append(retVecRule2, retVecRule1[i])
-	    }
-	}
-	if len(retVecRule2) == 1{
-	    return retVecRule2[0]
-	}else{
-	    //rule 3, smallest variance
-	    smallestV := 65536. //large enough number
-	    for i := 0; i < len(retVecRule2); i++{
-		v := variance(chunks[retVecRule2[i]].wordRuneLen[:])
-		if v < smallestV {
-		    smallestV = v
-		    retVecRule3 = []int{retVecRule2[i]}
-		}else if v == smallestV {
-		    retVecRule3 = append(retVecRule3, retVecRule2[i])
-		}
-	    }
-	    if len(retVecRule3) == 1{
-		return retVecRule3[0]
-	    }else{
-		//rule 4, Largest sum of degree of morphemic freedom of one-character words
-		smf := 0.
-		for i := 0; i < len(retVecRule3); i++{
-		    v := morphemicFreedom(&chunks[retVecRule3[i]])
-		    if v > smf {
-			smf = v
-			retVecRule4 = []int{retVecRule3[i]}
-		    }else if v == smf {
-			retVecRule4 = append(retVecRule4, retVecRule3[i])
-		    }
-		}
-		if len(retVecRule4) != 1{
-		    fmt.Println("exception!!")
-		    //exception 
-		}
-		return retVecRule4[0]
-	    }
-	}
+    if len(candidates1) == 1{
+	return candidates1[0]
     }
-    fmt.Println("error")
-    return 0
-}
 
-func getChunks(inString string, inOffset []int,dict Dict) (chunks []MatchItem){
-    var wordRuneLen [3]int;
-    var word [3]string;
-    var wordItem [3]*DictItem;
-    var chunkLen = len(inOffset)
-    var present bool;
-    for wordRuneLen[0] = min(4, chunkLen); wordRuneLen[0]>0; wordRuneLen[0]-- {
-	if wordRuneLen[0] == len(inOffset) {
-	    word[0] = inString[inOffset[0] : ]
-	}else{
-	    word[0] = inString[inOffset[0] : inOffset[wordRuneLen[0]]]
+    //else rule 2, Largest average word Rune length
+    avgLen := 0.
+    for i := 0; i < len(candidates1); i++{
+	avg := average(candidates1[i])
+	if avg > avgLen {
+	    avgLen = avg
+	    candidates2 = [][]darts.ResultPair{candidates1[i]}
+	}else if avg == avgLen {
+	    candidates2 = append(candidates2, candidates1[i])
 	}
-	wordItem[0], present = dict[word[0]];
-	if present || wordRuneLen[0] == 1 {
-	    left := chunkLen-wordRuneLen[0];
-	    if left == 0 {
-		return []MatchItem{MatchItem{word,wordRuneLen,wordItem}}[:]
-	    }
-w1:	    for wordRuneLen[1] = min(4, left); wordRuneLen[1]>0; wordRuneLen[1]-- {
-		if wordRuneLen[0] + wordRuneLen[1] == len(inOffset) {
-		    word[1] = inString[inOffset[wordRuneLen[0]] : ]
-		}else{
-		    word[1] = inString[inOffset[wordRuneLen[0]] : inOffset[wordRuneLen[0]+ wordRuneLen[1]]]
-		}
-		wordItem[1], present = dict[word[1]];
-		if present || wordRuneLen[1] == 1 {
-		    left = chunkLen-wordRuneLen[0]-wordRuneLen[1]
-		    if left == 0 {
-			word[2] = ""
-			wordRuneLen[2] = 0
-			wordItem[2] = nil
-			chunks = append(chunks, MatchItem{word,wordRuneLen,wordItem});
-			break w1;
-		    }
-		    for wordRuneLen[2] = min(4, left); wordRuneLen[2]>0; wordRuneLen[2]-- {
-			if wordRuneLen[0] + wordRuneLen[1] + wordRuneLen[2]== len(inOffset) {
-			    word[1] = inString[inOffset[wordRuneLen[0]+wordRuneLen[1]] : ]
-			}else{
-			    word[1] = inString[inOffset[wordRuneLen[0]+wordRuneLen[1]] : inOffset[wordRuneLen[0]+wordRuneLen[1]+wordRuneLen[2]]]
-			}
-			wordItem[2], present = dict[word[2]];
-			if present || wordRuneLen[2] == 1 {
-			    chunks = append(chunks, MatchItem{word,wordRuneLen,wordItem});
-			}
-		    }
-		}
-	    }
+    }
+    if len(candidates2) == 1{
+	return candidates2[0]
+    }
+
+    //else rule 3, smallest variance
+    smallestV := 65536. //large enough number
+    for i := 0; i < len(candidates2); i++{
+	v := variance(candidates2[i])
+	if v < smallestV {
+	    smallestV = v
+	    candidates3 = [][]darts.ResultPair{candidates2[i]}
+	}else if v == smallestV {
+	    candidates3 = append(candidates3, candidates2[i])
+	}
+    }
+    if len(candidates3) == 1{
+	return candidates3[0]
+    }
+
+    //else rule 4, Largest sum of degree of morphemic freedom of one-character words
+    smf := 0.
+    for i := 0; i < len(candidates3); i++{
+	v := morphemicFreedom(candidates3[i])
+	if v > smf {
+	    smf = v
+	    candidates4 = [][]darts.ResultPair{candidates3[i]}
+	}else if v == smf {
+	    candidates4 = append(candidates4, candidates3[i])
 	}
     }
     /*
-    for _, v := range chunks{
-	fmt.Printf("%v, %v\n", v.word, v.wordRuneLen);
-    }*/
-    return chunks;
+    if len(candidates4) != 1{
+	fmt.Println("exception!!", len(candidates4), candidates4)
+	//exception 
+    }
+    */
+    return candidates4[0]
+}
+
+type chunk struct{
+    offSets []int
+    values []int
+}
+func getChunks(inString []rune, d darts.Darts) (chunks [][]darts.ResultPair){
+    results1 := d.CommonPrefixSearch(inString, 0)
+
+    // no match or 1 match, 1 match assumes it's a 1 char match(or the dict is wrong)
+    // can just return, according to the MMSEG algorithm
+    if len(results1) == 0 {
+	chunks = append(chunks, []darts.ResultPair{{PrefixLen:1, Value:darts.Value{Freq:1}}})
+	return chunks
+    }else if len(results1) == 1{
+	chunks = append(chunks, results1)
+	return chunks
+    }
+    //else
+    for i := len(results1) - 1; i >= 0; i-- {
+	word1 := results1[i].PrefixLen
+	left1 := len(inString) - word1
+
+	if left1 == 0{//meaning i == len(results) - 1, and there is only 1 word in this inString, done!
+	    chunks = append(chunks, results1[i:i+1])
+	    return chunks
+	}
+	//else
+	results2 := d.CommonPrefixSearch(inString[word1:], 0)
+	if len(results2) == 0{//no match, fake a result for convenience
+	    results2 = []darts.ResultPair{{PrefixLen:1,Value:darts.Value{Freq:1}}}
+	}
+	for j := len(results2) - 1; j >= 0; j--{
+	    word2 := word1 + results2[j].PrefixLen
+	    left2 := len(inString) - word2
+
+	    if left2 == 0{ //a 2 words chunk
+		c := []darts.ResultPair{results1[i], results2[j]}
+		chunks = append(chunks, c)
+		continue
+	    }
+	    //else
+	    results3 := d.CommonPrefixSearch(inString[word2:], 0)
+	    if len(results3) == 0 { //fake a result for convenience
+		results3 = []darts.ResultPair{{PrefixLen:1,Value:darts.Value{Freq:1}}}
+	    }
+	    for k := len(results3) - 1; k >= 0; k--{
+		//word3 := word2 + results3[k].PrefixLen
+
+		c := []darts.ResultPair{results1[i], results2[j], results3[k]}
+		chunks = append(chunks, c)
+	    }
+	}
+    }
+    return chunks
 }
 
 func (s *Segmenter)Init(dictPath string){
-    s.dict = LoadDictionary(dictPath)
+    var err error
+    s.dict, err = darts.Load(dictPath)
+    if err != nil{
+	panic(err)
+    }
 }
-func (s *Segmenter)Mmseg(inString string, out chan [2]int) bool{
-    var pos = make([]int,len(inString))
-    runeLen := 0
-    for i,r := range inString{
-	if unicode.IsPunct(r){
-	    pos[runeLen] = -1
-	}else{
-	    pos[runeLen] = i
-	}
-	runeLen++
+func (s *Segmenter)Mmseg(inString string, initOffset int, takeWord func(int, int), takeThesaurus func(int,int), lastPiece bool) (lstPos int){
+    inRunes := []rune(inString)
+    var pos = make([]int, len(inRunes)+1)
+    pos[0] = 0
+    for i, r := range inRunes{
+	pos[i+1] = pos[i] + len(string(r))
     }
     offset := 0
     nextPunct := 0
-    for i, v := range pos{
-	if v == -1 {
-	    nextPunct = i
-	    break
-	}
-    }
     eol := false
-f0: for ; offset < runeLen; {
+    for ; offset < len(inRunes); {
 	if offset == nextPunct && !eol{
 	    offset++
-	    //find the next none Punct offset
-	    for ;pos[offset] == -1 && offset<runeLen;{
+	    //find the next non-Punct offset
+	    for ; offset<len(inRunes) && !unicode.IsLetter(inRunes[offset]); {
 		offset++
 	    }
-	    if offset == runeLen{
-		break f0
+	    //only puncts left, return
+	    if offset == len(inRunes){
+		return pos[offset]
 	    }
 	    //find the next Punct after offset
-	    for i, v := range pos[offset:]{
-		if v == -1 {
-		    nextPunct = i+offset
+	    for i, r := range inRunes[offset:]{
+		if !unicode.IsLetter(r){
+		    nextPunct = i + offset
 		    break
 		}
-		if i+offset == runeLen {
+		if i+offset == len(inRunes) {
 		    eol = true
 		}
 	    }
 	}
-	var chunks []MatchItem
+	var chunks [][]darts.ResultPair
 	if eol {
-	    chunks = getChunks(inString[:], pos[offset:runeLen], s.dict);
+	    if lastPiece{
+		chunks = getChunks(inRunes[offset:], s.dict);
+	    }else{
+		return pos[offset]
+	    }
 	}else{
-	    chunks = getChunks(inString[:], pos[offset:nextPunct], s.dict);
+	    chunks = getChunks(inRunes[offset:nextPunct], s.dict);
 	}
 	if 0 == len(chunks){
-	    fmt.Println("chunks is 0",offset, nextPunct, runeLen,inString[:])
+	    panic("error, length of chunks is zero")
 	}
-	index := filterChunksByRules(chunks);
-	if offset < 0 ||offset > len(pos) || index > len(chunks){
-	    fmt.Println("oops:",offset, pos[offset], index)
-	}
-	//fmt.Printf("%v, %v\n", offset, chunks[index].wordRuneLen[0]);
-	out <- [2]int{pos[offset], pos[offset]+len(chunks[index].word[0])}
-	offset  += chunks[index].wordRuneLen[0];
+	chunk := filterChunksByRules(chunks)
+	takeWord(initOffset+pos[offset], pos[offset+chunk[0].PrefixLen] - pos[offset])
+	offset  += chunk[0].PrefixLen;
     }
-    close(out);
-    return true;
+    if offset > len(inRunes){
+	panic("error MMseg")
+    }
+    return pos[offset]
 }

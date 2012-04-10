@@ -13,6 +13,8 @@ import (
     )
 
 func main() {
+    var s = new(mmsego.Segmenter)
+    s.Init("/public/development/go/src/mmsego/darts.lib")
     f, err := os.Create("/tmp/gprof")
     if err != nil {
 	log.Fatal(err)
@@ -20,33 +22,20 @@ func main() {
     pprof.StartCPUProfile(f)
     defer pprof.StopCPUProfile()
 
-    var buf [10000000]int;
-    inChan := make(chan string, 50);
-    outChan := make(chan [2]int, 50);
-    go mmsego.Mmseg(inChan, outChan)
-
     t := time.Now()
-    go func(){
-	unifile, _ := os.Open("/tmp/a.txt");
-	uniLineReader := bufio.NewReaderSize(unifile, 4000);
-	line, _, bufErr := uniLineReader.ReadLine();
-	for nil == bufErr {
-	    //fmt.Println(string(line[:]))
-	    inChan <- string(line)[:]
-	    line, _, bufErr = uniLineReader.ReadLine();
-	}
-	close(inChan)
-    }()
-    i := 0;
-    for m := range outChan {
-	buf[i] = m[0]
-	buf[i+1] = m[1]
-	i += 2
+    offset := 0
+
+    unifile, _ := os.Open("/tmp/a.txt")
+    uniLineReader := bufio.NewReaderSize(unifile, 4000)
+    line, bufErr := uniLineReader.ReadString('\n')
+    for nil == bufErr {
+	takeWord := func(off int, length int){ fmt.Printf("%s ", string(line[off-offset:off-offset+length])) }
+	s.Mmseg(line[:], offset, takeWord, nil, false)
+	offset += len(line)
+	line, bufErr = uniLineReader.ReadString('\n')
     }
-    fmt.Printf("Duration: %v\n", time.Since(t));
-    fmt.Println(i)
-    /*
-    for j := 0; j<i; j++ {
-	fmt.Printf("%v ", buf[j])
-    }*/
+    takeWord := func(off int, length int){ fmt.Printf("%s ", string(line[off-offset:off-offset+length])) }
+    s.Mmseg(line, offset, takeWord, nil, true)
+
+    fmt.Printf("Duration: %v\n", time.Since(t))
 }
