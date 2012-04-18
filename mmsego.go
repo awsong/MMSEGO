@@ -1,7 +1,7 @@
 package mmsego
 
 import (
-    "darts"
+    "github.com/awsong/go-darts"
     "math"
     "unicode"
 )
