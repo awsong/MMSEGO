@@ -1,5 +1,22 @@
-// +build ignore
+MMSEGO
+=====
+This is a GO implementation of [MMSEG](http://technology.chtsai.org/mmseg/) which a Chinese word splitting algorithm.
 
+TO DO list
+----------
+* Documentation/comments
+* Benchmark
+
+Usage
+---------
+#Input Dictionary Format
+```sh
+Key\tFreq
+```
+Each key occupies one line. The file should be utf-8 encoded, please refer to [go-darts](https://github.com/awsong/go-darts)
+
+#Code example
+```go
 package main
 
 import (
@@ -9,18 +26,14 @@ import (
     "mmsego"
     "bufio"
     "log"
-    "runtime/pprof"
     )
 
 func main() {
     var s = new(mmsego.Segmenter)
-    s.Init("/public/development/go/src/mmsego/darts.lib")
-    f, err := os.Create("/tmp/gprof")
+    s.Init("darts.lib")
     if err != nil {
 	log.Fatal(err)
     }
-    pprof.StartCPUProfile(f)
-    defer pprof.StopCPUProfile()
 
     t := time.Now()
     offset := 0
@@ -40,3 +53,7 @@ func main() {
 
     fmt.Printf("Duration: %v\n", time.Since(t))
 }
+```
+LICENSE
+-----------
+Apache License 2.0
